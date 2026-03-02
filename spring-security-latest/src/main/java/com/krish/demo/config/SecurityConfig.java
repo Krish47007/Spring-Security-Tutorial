@@ -1,14 +1,19 @@
 package com.krish.demo.config;
 
+import com.krish.demo.filter.JwtAuthFilter;
 import com.krish.demo.repository.UserInfoRepository;
 import com.krish.demo.service.UserInfoUserDetailsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -16,31 +21,20 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    @Autowired
+    private JwtAuthFilter jwtAuthFilter;
+
     //For Authentication
     @Bean
     public UserDetailsService userDetailsService()
     {
-        /*//Hardcoded users
-        UserDetails admin = User.withUsername("Krish")
-                .password(passwordEncoder.encode("Krish@1234")) //Password should be encrypted
-                .roles("ADMIN","USER") //Spring internally uses ROLE_ to find the role so we don't need to append it.
-                .build();
-
-        UserDetails user = User.withUsername("John")
-                .password(passwordEncoder.encode("John@123"))
-                .roles("USER") //Spring internally uses ROLE_ to find the role so we need to append it.
-                .build();
-
-        //Its in-memory authentication
-        //InMemoryUserDetailsManager is an implementor of UserDetailsService interface.
-        return new InMemoryUserDetailsManager(admin,user);*/
-
         return new UserInfoUserDetailsService();
     }
 
@@ -60,24 +54,18 @@ public class SecurityConfig {
                 .requestMatchers("/products/welcome").permitAll()
                 .and()
                 .authorizeHttpRequests()
-                .requestMatchers("/users/add").permitAll()
+                .requestMatchers("/users/add","/users/login").permitAll()
                 .and()
                 .authorizeHttpRequests()
                 .requestMatchers("/products/**").authenticated()
                 .and()
-                .httpBasic() //or formLogin()
+                .sessionManagement()
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 .and()
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
-        /*
-        //The above syntax is depricated in the latest Spring Boot version
-        //Below is the correct syntax
-        return http.csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/product/welcome").permitAll()
-                        .requestMatchers("/product/**").authenticated()
-                )
-                .formLogin(login -> login.permitAll())
-                .build();*/
+
     }
 
     @Bean
@@ -88,4 +76,11 @@ public class SecurityConfig {
         provider.setPasswordEncoder(passwordEncoder());
         return provider;
     }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception
+    {
+        return config.getAuthenticationManager();
+    }
+
 }
